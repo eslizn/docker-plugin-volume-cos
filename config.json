@@ -1,0 +1,41 @@
+{
+  "description": "cos plugin for docker",
+  "documentation": "https://github.com/eslizn/docker-plugin-volume-cos/",
+  "entrypoint": ["docker-plugin-volume-cos"],
+  "env": [
+	{
+	  "name": "COS_SECRET_ID",
+	  "settable": [
+		"value"
+	  ],
+	  "value": ""
+	},
+	{
+	  "name": "COS_SECRET_KEY",
+	  "settable": [
+		"value"
+	  ],
+	  "value": ""
+	}
+  ],
+  "network": {
+	"type": "host"
+  },
+  "propagatedMount": "/var/lib/docker-volumes",
+  "interface": {
+	"types": [
+	  "docker.volumedriver/1.0"
+	],
+	"socket": "cosfs.sock"
+  },
+  "linux": {
+	"capabilities": [
+	  "CAP_SYS_ADMIN"
+	],
+	"devices": [
+	  {
+		"path": "/dev/fuse"
+	  }
+	]
+  }
+}
