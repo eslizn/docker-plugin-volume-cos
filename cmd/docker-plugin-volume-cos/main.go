@@ -50,6 +50,12 @@ func (v *Volume) MountOptions(req *volume.CreateRequest) []string {
 	return v.Driver.MountOptions(req)
 }
 
+func (v *Volume) PreMount(*volume.MountRequest) error {
+	return nil
+}
+
+func (v *Volume) PostMount(*volume.MountRequest) {}
+
 func (v *Volume) Mount(req *volume.MountRequest) (*volume.MountResponse, error) {
 	v.RLock()
 	defer v.RUnlock()
