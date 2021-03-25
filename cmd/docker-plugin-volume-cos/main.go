@@ -1,26 +1,80 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"github.com/docker/go-plugins-helpers/volume"
 	"github.com/marcelo-ochoa/docker-volume-plugins/mounted-volume"
 	"log"
+	"os"
+	"sync"
 )
 
+type Option struct {
+	Bucket    string
+	AppId     string
+	SecretId  string
+	SecretKey string
+}
+
+func (o Option) String() string {
+	return fmt.Sprintf("%s-%s:%s:%s", o.Bucket, o.AppId, o.SecretId, o.SecretKey)
+}
+
 type Volume struct {
-	*mountedvolume.Driver
+	sync.RWMutex
+	mountedvolume.Driver
+	Options map[string]Option
+}
+
+func (v *Volume) Validate(req *volume.CreateRequest) error {
+	var args = []string{"app_id", "secret_id", "secret_key"}
+	for _, v := range args {
+		if _, ok := req.Options[v]; !ok {
+			return fmt.Errorf("argument: %s missing", v)
+		}
+	}
+	return nil
+}
+
+func (v *Volume) MountOptions(req *volume.CreateRequest) []string {
+	option := Option{
+		Bucket:    req.Name,
+		AppId:     req.Options["app_id"],
+		SecretId:  req.Options["secret_id"],
+		SecretKey: req.Options["secret_key"],
+	}
+	v.Lock()
+	defer v.Unlock()
+	v.Options[req.Name] = option
+	return v.Driver.MountOptions(req)
 }
 
 func (v *Volume) Mount(req *volume.MountRequest) (*volume.MountResponse, error) {
-	fmt.Printf("%+v\n", req)
+	v.RLock()
+	defer v.RUnlock()
+	option, ok := v.Options[req.Name]
+	if !ok {
+		return nil, errors.New("option missing")
+	}
+	fp, err := os.OpenFile("/etc/passwd-cosfs", os.O_CREATE|os.O_TRUNC|os.O_RDWR, 0640)
+	if err != nil {
+		return nil, err
+	}
+	_, err = fp.WriteString(option.String())
+	if err != nil {
+		return nil, err
+	}
 	return v.Driver.Mount(req)
 }
 
 func main() {
 	log.SetFlags(0)
 	driver := &Volume{
-		Driver: mountedvolume.NewDriver("cosfs", false, "cosfs", "local"),
+		Options: make(map[string]Option),
+		Driver:  *mountedvolume.NewDriver("cosfs", false, "cosfs", "local"),
 	}
+	driver.Init(driver)
 	defer driver.Close()
 	driver.ServeUnix()
 }
