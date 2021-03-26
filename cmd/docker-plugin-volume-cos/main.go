@@ -22,9 +22,8 @@ func (o Option) String() string {
 }
 
 type Volume struct {
-	sync.RWMutex
 	mountedvolume.Driver
-	Options map[string]Option
+	Options sync.Map
 }
 
 func (v *Volume) Validate(req *volume.CreateRequest) error {
@@ -38,17 +37,14 @@ func (v *Volume) Validate(req *volume.CreateRequest) error {
 }
 
 func (v *Volume) MountOptions(req *volume.CreateRequest) []string {
-	option := Option{
+	v.Options.Store(req.Name, Option{
 		Bucket:    req.Name,
 		AppId:     req.Options["app_id"],
 		SecretId:  req.Options["secret_id"],
 		SecretKey: req.Options["secret_key"],
-	}
-	v.Lock()
-	defer v.Unlock()
-	v.Options[req.Name] = option
+	})
 	//return v.Driver.MountOptions(req)
-	return []string{fmt.Sprintf("%s-%s", req.Name, option.AppId)}
+	return []string{fmt.Sprintf("%s-%s", req.Name, req.Options["app_id"])}
 }
 
 func (v *Volume) PreMount(*volume.MountRequest) error {
@@ -58,12 +54,15 @@ func (v *Volume) PreMount(*volume.MountRequest) error {
 func (v *Volume) PostMount(*volume.MountRequest) {}
 
 func (v *Volume) Mount(req *volume.MountRequest) (*volume.MountResponse, error) {
-	v.RLock()
-	defer v.RUnlock()
-	option, ok := v.Options[req.Name]
+	val, ok := v.Options.Load(req.Name)
 	if !ok {
 		return nil, errors.New("option missing")
 	}
+	option, assert := val.(Option)
+	if !assert {
+		return nil, errors.New("option invalid")
+	}
+
 	fp, err := os.OpenFile("/etc/passwd-cosfs", os.O_CREATE|os.O_TRUNC|os.O_RDWR, 0640)
 	if err != nil {
 		return nil, err
@@ -78,7 +77,7 @@ func (v *Volume) Mount(req *volume.MountRequest) (*volume.MountResponse, error) 
 func main() {
 	//log.SetFlags(0)
 	driver := &Volume{
-		Options: make(map[string]Option),
+		Options: sync.Map{},
 		Driver:  *mountedvolume.NewDriver("cosfs", false, "cosfs", "local"),
 	}
 	driver.Init(driver)
