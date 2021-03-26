@@ -3,11 +3,11 @@ package main
 import (
 	"errors"
 	"fmt"
-	"github.com/docker/go-plugins-helpers/volume"
-	"github.com/marcelo-ochoa/docker-volume-plugins/mounted-volume"
-	"log"
 	"os"
 	"sync"
+
+	"github.com/docker/go-plugins-helpers/volume"
+	mountedvolume "github.com/marcelo-ochoa/docker-volume-plugins/mounted-volume"
 )
 
 type Option struct {
@@ -47,7 +47,8 @@ func (v *Volume) MountOptions(req *volume.CreateRequest) []string {
 	v.Lock()
 	defer v.Unlock()
 	v.Options[req.Name] = option
-	return v.Driver.MountOptions(req)
+	//return v.Driver.MountOptions(req)
+	return []string{fmt.Sprintf("%s-%s", req.Name, option.AppId)}
 }
 
 func (v *Volume) PreMount(*volume.MountRequest) error {
@@ -75,7 +76,7 @@ func (v *Volume) Mount(req *volume.MountRequest) (*volume.MountResponse, error) 
 }
 
 func main() {
-	log.SetFlags(0)
+	//log.SetFlags(0)
 	driver := &Volume{
 		Options: make(map[string]Option),
 		Driver:  *mountedvolume.NewDriver("cosfs", false, "cosfs", "local"),
